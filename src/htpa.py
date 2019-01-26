@@ -32,6 +32,7 @@ import struct
 
 import IPython
 import pdb
+import contextlib
 
 revisions = {
   0: {'blockshift': 2},
@@ -44,14 +45,14 @@ unpack_formats = {
 }
 
 class HTPA:
+  PCSCALEVAL = 1e8
+
   def __init__(self, address=0x1a, revision=1, pull_ups=True):
     assert revision in revisions.keys()
     assert pull_ups in (True, False)
 
     self.address = address
     self.i2c = I2C("/dev/i2c-1")
-
-    self.blockshift = revisions[revision]['blockshift']
 
     wakeup_and_blind = self.generate_command(0x01, 0x01) # wake up the device
     adc_res = self.generate_command(0x03, 0x0C) # set ADC resolution to 16 bits
@@ -180,40 +181,60 @@ class HTPA:
 
     return struct.unpack(fmt, byts)[0]
 
-  def temperature_compensation(self, im, ptat):
-      comp = np.zeros((32,32))
+  def temperature_compensation(self, im, electric_offset, ptat, vdd):
+    mean_ptat = np.mean(ptat)
+    t_ambient = self.ambient_temperature(mean_ptat)
 
-      Ta = np.mean(ptat) * self.PTATgradient + self.PTAToffset
-    #     temperature compensated voltage
-      comp = ((self.ThGrad * Ta) / pow(2, self.gradScale)) + self.ThOffset
+    v = np.reshape(im, (32, 32))
+    v -= self.thermal_offset(t_ambient)
+    v -= np.reshape(electric_offset, (32, 32))
+    if vdd:
+      mean_vdd = np.mean(vdd)
+      v -= self.voltage_offset(mean_ptat, mean_vdd)
+    v = self.sensitivity_compensation(v)
 
-      Vcomp = np.reshape(im,(32, 32)) - comp
-      return Vcomp
+    return v
+
+  @staticmethod
+  def scaled_mean_ptat(mean_ptat, coef, offset, scale):
+    return coef * mean_ptat / pow(2, scale) + offset
+
+  def voltage_offset(self, mean_ptat, mean_vdd):
+    calibration_param = (self.calib2_vdd - self.calib1_vdd) / (self.calib2_ptat - self.calib1_ptat)
+    return self.scaled_mean_ptat(mean_ptat, self.vdd_comp_grad, self.vdd_comp_offset, self.vdd_scaling_grad) * (
+            mean_vdd - self.calib1_vdd - calibration_param * (mean_ptat - self.calib1_ptat))
+
+  def thermal_offset(self, mean_ptat):
+    return self.scaled_mean_ptat(mean_ptat, self.th_grad, self.th_offset, self.grad_scale)
+
+  def ambient_temperature(self, mean_ptat):
+    return mean_ptat * self.ptat_grad + self.ptat_grad
 
   def offset_compensation(self, im):
     return im - self.offset
 
   def sensitivity_compensation(self, im):
-    return im/self.PixC
+    return im * self.PCSCALEVAL/ self.pix_c
 
   def measure_observed_offset(self):
     print("Measuring observed offsets")
     print("    Camera should be against uniform temperature surface")
+
     mean_offset = np.zeros((32, 32))
+    electric_offset, vdd = self.measure_electrical_offset()
 
     for i in range(10):
       print("    frame " + str(i))
-      (p, pt) = self.capture_image()
-      im = self.temperature_compensation(p, pt)
-      mean_offset += im/10.0
+      image, ptat = self.capture_image()
+      im = self.temperature_compensation(image, electric_offset, ptat, vdd)
+      mean_offset += im / 10.0
 
     self.offset = mean_offset
 
   def measure_electrical_offset(self):
-    (offsets, ptats) = self.capture_image(blind=True)
-    self.offset = self.temperature_compensation(offsets, ptats)
+    return self.capture_image(blind=True, measure_vdd=True)
 
-  def capture_image(self, blind=False):
+  def capture_image(self, blind=False, measure_vdd=False):
     pixel_values = np.zeros(1024)
     ptats = np.zeros(8)
 
@@ -257,17 +278,28 @@ class HTPA:
       ptats[7-block] = bottom_data[0]
 
     pixel_values = np.reshape(pixel_values, (32, 32))
+    return pixel_values, ptats
 
-    return (pixel_values, ptats)
-
-  def generate_command(self, register, value):
+  @staticmethod
+  def generate_command(register, value):
     return [I2C.Message([register, value])]
 
-  def generate_expose_block_command(self, block, blind=False):
+  @staticmethod
+  def config_flags(flags, wakeup=False, blind=False, vdd_measure=False, start=False, block=None):
+    if wakeup:
+      flags |= 1
     if blind:
-      return self.generate_command(0x01, 0x09 + (block << self.blockshift) + 0x02)
-    else:
-      return self.generate_command(0x01, 0x09 + (block << self.blockshift))
+      flags |= 1 << 1
+    if vdd_measure:
+      flags |= 1 << 2
+    if start:
+      flags |= 1 << 3
+    if block is not None:
+      flags |= 1 << 4
+    return flags
+
+  def generate_expose_block_command(self, block, blind=False, vdd_measure=False):
+    return self.generate_command(0x01, self.config_flags(0x09, block=block, blind=blind, vdd_measure=vdd_measure))
 
   def send_command(self, cmd, wait=True):
     self.i2c.transfer(self.address, cmd)
@@ -278,5 +310,7 @@ class HTPA:
     sleep = self.generate_command(0x01, 0x00)
     self.send_command(sleep)
 
-htpa = HTPA(pull_ups=False)
-htpa.close()
+
+if __name__ == '__main__':
+  with contextlib.closing(HTPA(pull_ups=False)) as htpa:
+    htpa.measure_observed_offset()
