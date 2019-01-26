@@ -1,9 +1,25 @@
 import numpy as np
 
 def interpolate_tables(x, y, device='HTPA32x32dR1L2_1HiSiF5_0_Gain3k3_Extended'):
-    x_axes, y_axes, table = get_table_and_axes(device)
+  x_axes, y_axes, table = get_table_and_axes(device)
 
-    # find the appropriate row & col...
+  # could be an integer or tuple of two ints
+  x_col = _find_axes_pos(x_axes, x)
+  y_col = _find_axes_pos(y_axes, y)
+
+  # not sure on the math of bi-linear interpolation
+  # numpy+scipy  has https://docs.scipy.org/doc/numpy-1.13.0/reference/generated/numpy.interp.html
+  # and https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.interp2d.html
+
+
+  # find the appropriate row & col...
+
+def _find_axes_pos(axes, val):
+  for i in range(axes):
+    if axes[i] == val:
+      return i
+    elif (axes[i] < val) and (axes[i+1] > val):
+      return (i, i+1)
 
 def get_table_and_axes(device='HTPA32x32dR1L2_1HiSiF5_0_Gain3k3_Extended'):
   if device == 'HTPA32x32dR1L2_1HiSiF5_0_Gain3k3_Extended':
