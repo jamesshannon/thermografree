@@ -62,17 +62,26 @@ class HTPA:
     self.send_command(wakeup_and_blind)
     self.send_command(adc_res)
     if pull_ups:
-      self.send_command(self.generate_command(0x09, 0x88))
+      self.set_pull_up()
 
     self.set_bias_current(0x05)
     self.set_clock_speed(0x15)
-    self.set_cm_current(0x0C)
+    self.set_bpa_current(0x0C)
 
     print ("Grabbing EEPROM data")
 
     eeprom = self.get_eeprom()
     self.extract_eeprom_parameters(eeprom)
     self.eeprom = eeprom
+
+    print ("Setting parameters from EEPROM data")
+    self.send_command(wakeup_and_blind)
+    self.send_command(adc_res)
+    self.set_bias_current(self.calib_bias)
+    self.set_bpa_current(self.calib_bpa)
+    self.set_clock_speed(self.calib_clk)
+    if pull_ups:
+      self.set_pull_up(self.calib_pu)
 
     # initialize offset to zero
     self.offset = np.zeros((32, 32))
@@ -83,7 +92,10 @@ class HTPA:
   def set_clock_speed(self, clk):
     self._send_clamped_int(0x06, clk, 0, 63)
 
-  def set_cm_current(self, cm):
+  def set_pull_up(self, pu=0x88):
+    self.generate_command(0x09, pu)
+
+  def set_bpa_current(self, cm):
     self._send_clamped_int((0x07, 0x08), cm, 0, 31)
 
   def _send_clamped_int(self, addresses, val, min_val, max_val):
@@ -102,6 +114,9 @@ class HTPA:
     self.i2c.transfer(eeprom_address, q2)
     return np.array(q1[1].data + q2[1].data)
 
+  def broadcast_offset_param(self, data):
+    return np.array([[data[int(i / 16)][(j + i * 32) % 128] for j in range(32)] for i in range(32)])
+
   def extract_eeprom_parameters(self, eeprom):
     ebytes = eeprom.astype('u1').tobytes()
 
@@ -114,22 +129,23 @@ class HTPA:
 
     # VddCompGradij stored as 16 bit signed values
     # JS: Looks to be an (8, 32) shape
-    self.vdd_comp_grad = np.frombuffer(ebytes[0x0340:0x0540], dtype='<i2')\
-        .copy()
+    self.vdd_comp_grad = self.broadcast_offset_param(np.frombuffer(ebytes[0x0340:0x0540], dtype='<i2')\
+      .copy().reshape((2, -1)))
 
     # VddCompOffij stored as 16 bit signed values
     # JS: Though the original thermografee code read as unsigned
     # JS: Looks to be an (8, 32) shape
-    self.vdd_comp_offset = np.frombuffer(ebytes[0x0540:0x0740], dtype='<i2')
+    self.vdd_comp_offset = self.broadcast_offset_param(np.frombuffer(ebytes[0x0540:0x0740], dtype='<i2')\
+      .copy().reshape((2, -1)))
 
     # ThGradij stored as 16 bit signed values
     self.th_grad = np.frombuffer(ebytes[0x0740:0x0F40], dtype='<i2').copy()\
-        .reshape((32, 32))
+      .reshape((32, 32))
 
     # ThOffsetij stored as 16 bit signed values
     # JS: Though the original thermografee code read as unsigned
     self.th_offset = np.frombuffer(ebytes[0x0F40:0x1740], dtype='<i2').copy()\
-        .reshape((32, 32))
+      .reshape((32, 32))
 
     # Pij stored as 16 bit unsigned values
     self.P = np.frombuffer(ebytes[0x1740:], dtype='<u2').copy()\
@@ -142,7 +158,7 @@ class HTPA:
     self.P[16:, :] = np.flipud(self.P[16:,:])
 
     epsilon = eeprom[0x000D]
-    global_offset = self.unpack(ebytes[0x0054], signed=True)
+    self.global_offset = self.unpack(ebytes[0x0054], signed=True)
     #  GlobalGain and VddCalib are both stored as 16 bit unsigned
     global_gain = self.unpack(ebytes[0x0055:0x0057])
 
@@ -183,17 +199,19 @@ class HTPA:
 
   def temperature_compensation(self, im, electric_offset, ptat, vdd):
     mean_ptat = np.mean(ptat)
+    mean_vdd = np.mean(vdd)
+
     t_ambient = self.ambient_temperature(mean_ptat)
 
     v = np.reshape(im, (32, 32))
     v -= self.thermal_offset(t_ambient)
     v -= np.reshape(electric_offset, (32, 32))
-    if vdd:
-      mean_vdd = np.mean(vdd)
-      v -= self.voltage_offset(mean_ptat, mean_vdd)
+    v -= self.voltage_offset(mean_ptat, mean_vdd)
     v = self.sensitivity_compensation(v)
 
-    return v
+    t = self.lookup_and_interpolate(v, t_ambient)
+
+    return t + self.global_offset
 
   @staticmethod
   def scaled_mean_ptat(mean_ptat, coef, offset, scale):
@@ -201,8 +219,10 @@ class HTPA:
 
   def voltage_offset(self, mean_ptat, mean_vdd):
     calibration_param = (self.calib2_vdd - self.calib1_vdd) / (self.calib2_ptat - self.calib1_ptat)
-    return self.scaled_mean_ptat(mean_ptat, self.vdd_comp_grad, self.vdd_comp_offset, self.vdd_scaling_grad) * (
-            mean_vdd - self.calib1_vdd - calibration_param * (mean_ptat - self.calib1_ptat))
+    offset = self.scaled_mean_ptat(mean_ptat, self.vdd_comp_grad, self.vdd_comp_offset, self.vdd_scaling_grad)
+    offset *= mean_vdd - self.calib1_vdd - calibration_param * (mean_ptat - self.calib1_ptat)
+    offset /= pow(2, self.vdd_scaling_offset)
+    return offset
 
   def thermal_offset(self, mean_ptat):
     return self.scaled_mean_ptat(mean_ptat, self.th_grad, self.th_offset, self.grad_scale)
@@ -214,14 +234,14 @@ class HTPA:
     return im - self.offset
 
   def sensitivity_compensation(self, im):
-    return im * self.PCSCALEVAL/ self.pix_c
+    return im * self.PCSCALEVAL / self.pix_c
 
   def measure_observed_offset(self):
     print("Measuring observed offsets")
     print("    Camera should be against uniform temperature surface")
 
     mean_offset = np.zeros((32, 32))
-    electric_offset, vdd = self.measure_electrical_offset()
+    electric_offset, vdd = self.capture_offsets()
 
     for i in range(10):
       print("    frame " + str(i))
@@ -231,19 +251,11 @@ class HTPA:
 
     self.offset = mean_offset
 
-  def measure_electrical_offset(self):
-    return self.capture_image(blind=True, measure_vdd=True)
-
-  def capture_image(self, blind=False, measure_vdd=False):
-    pixel_values = np.zeros(1024)
-    ptats = np.zeros(8)
-
-    for block in range(4):
-      # print("Exposing block " + str(block))
-      self.send_command(self.generate_expose_block_command(block, blind=blind), wait=False)
-
+  def capture(self, blocks, **kwargs):
+    for block in range(blocks):
+      msg_data = self.send_command(self.generate_expose_block_command(block, **kwargs), wait=False)
       query = [I2C.Message([0x02]), I2C.Message([0x00], read=True)]
-      expected = 1 + (block << 2)
+      expected = msg_data[1] ^ self.config_flags(start=True)
 
       done = False
 
@@ -251,7 +263,6 @@ class HTPA:
         self.i2c.transfer(self.address, query)
 
         if not (query[1].data[0] == expected):
-          # print("Not ready, received " + str(query[1].data[0]) + ", expected " + str(expected))
           time.sleep(0.005)
         else:
           done = True
@@ -266,7 +277,20 @@ class HTPA:
 
       top_data = top_data[1::2] + (top_data[0::2] << 8)
       bottom_data = bottom_data[1::2] + (bottom_data[0::2] << 8)
+      yield block, top_data, bottom_data
 
+  def capture_offsets(self):
+    for block, top_data, bottom_data in self.capture(1, blind=True, vdd_measure=True):
+      vdds = np.zeros(2)
+      vdds[block + 0] = top_data[0]
+      vdds[block + 1] = bottom_data[0]
+      return self.broadcast_offset_param(np.vstack([top_data, bottom_data])), vdds
+
+  def capture_image(self):
+    pixel_values = np.zeros(1024)
+    ptats = np.zeros(8)
+
+    for block, top_data, bottom_data in self.capture(4, blind=False):
       pixel_values[(0+block*128):(128+block*128)] = top_data[1:]
       # bottom data is in a weird shape
       pixel_values[(992-block*128):(1024-block*128)] = bottom_data[1:33]
@@ -285,7 +309,7 @@ class HTPA:
     return [I2C.Message([register, value])]
 
   @staticmethod
-  def config_flags(flags, wakeup=False, blind=False, vdd_measure=False, start=False, block=None):
+  def config_flags(flags=0, wakeup=False, blind=False, vdd_measure=False, start=False, block=None):
     if wakeup:
       flags |= 1
     if blind:
@@ -299,18 +323,23 @@ class HTPA:
     return flags
 
   def generate_expose_block_command(self, block, blind=False, vdd_measure=False):
-    return self.generate_command(0x01, self.config_flags(0x09, block=block, blind=blind, vdd_measure=vdd_measure))
+    return self.generate_command(0x01, self.config_flags(wakeup=True, start=True, block=block, blind=blind, vdd_measure=vdd_measure))
 
   def send_command(self, cmd, wait=True):
     self.i2c.transfer(self.address, cmd)
     if wait:
       time.sleep(0.005) # sleep for 5 ms
+    return cmd[0].data
 
   def close(self):
     sleep = self.generate_command(0x01, 0x00)
     self.send_command(sleep)
 
+  def lookup_and_interpolate(self, v, t_ambient):
+    # TODO implement table lookup
+    return v
+
 
 if __name__ == '__main__':
-  with contextlib.closing(HTPA(pull_ups=False)) as htpa:
+  with contextlib.closing(HTPA()) as htpa:
     htpa.measure_observed_offset()
