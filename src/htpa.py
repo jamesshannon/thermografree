@@ -1,3 +1,27 @@
+"""
+Original htpa.py licensed under MIT License
+
+Copyright (c) 2017 Logan Williams
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+
 from __future__ import division
 
 from periphery import I2C
@@ -87,7 +111,6 @@ class HTPA:
     self.dead_pix_mask = np.frombuffer(ebytes[0x00B0:0x00C8], dtype='<u2')\
         .copy()
 
-
     # VddCompGradij stored as 16 bit signed values
     # JS: Looks to be an (8, 32) shape
     self.vdd_comp_grad = np.frombuffer(ebytes[0x0340:0x0540], dtype='<i2')\
@@ -125,7 +148,7 @@ class HTPA:
     p_min = self.unpack(ebytes[0x0000:0x0004])
     p_max = self.unpack(ebytes[0x0004:0x0008])
     self.pix_c = ((self.P * (p_max - p_min) / 65535. + p_min)
-                  * (epsilon / 100) * (GlobalGain / 100))
+                  * (epsilon / 100) * (global_gain / 100))
 
     self.grad_scale = eeprom[0x0008]
     #  GlobalGain and VddCalib are both stored as 16 bit unsigned
