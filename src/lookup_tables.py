@@ -8,7 +8,7 @@ def interpolate_tables(t_ambient, image, device=None):
   assert table.shape == (len(dk_axes), len(ta_axes))
 
   ta_axes = np.array(ta_axes)
-  dk_axes = np.array(dk_axes)
+  dk_axes = np.array(dk_axes) - offset
 
   d_ta = ta_axes[1] - ta_axes[0]
   d_dk = dk_axes[1] - dk_axes[0]
@@ -1756,7 +1756,7 @@ def get_table_and_axes(device=None):
       dtype='uint16')
 
     ta_axes = (2882, 3032, 3182, 3332)
-    dk_axes = (-64, -32, 0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320)
+    dk_axes = (0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384)
 
     return ta_axes, dk_axes, table, 64
   else:
