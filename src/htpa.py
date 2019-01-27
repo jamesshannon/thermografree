@@ -34,6 +34,8 @@ import IPython
 import pdb
 import contextlib
 
+from lookup_tables import interpolate_tables
+
 revisions = {
   0: {'blockshift': 2},
   1: {'blockshift': 4},
@@ -228,7 +230,7 @@ class HTPA:
     return self.scaled_mean_ptat(mean_ptat, self.th_grad, self.th_offset, self.grad_scale)
 
   def ambient_temperature(self, mean_ptat):
-    return mean_ptat * self.ptat_grad + self.ptat_grad
+    return mean_ptat * self.ptat_grad + self.ptat_offset
 
   def offset_compensation(self, im):
     return im - self.offset
@@ -335,9 +337,8 @@ class HTPA:
     sleep = self.generate_command(0x01, 0x00)
     self.send_command(sleep)
 
-  def lookup_and_interpolate(self, v, t_ambient):
-    # TODO implement table lookup
-    return v
+  def lookup_and_interpolate(self, t, t_ambient):
+    return interpolate_tables(t_ambient, t)
 
 
 if __name__ == '__main__':
