@@ -30,10 +30,6 @@ import numpy as np
 import copy
 import struct
 
-import IPython
-import pdb
-import contextlib
-
 from lookup_tables import interpolate_tables
 
 revisions = {
@@ -53,17 +49,25 @@ class HTPA:
     assert revision in revisions.keys()
     assert pull_ups in (True, False)
 
+    self.device = 'HTPA32x32dR1L2_1HiSiF5_0_Gain3k3_Extended'
+
     self.address = address
     self.i2c = I2C("/dev/i2c-1")
+    self.use_pullups = pull_ups
 
+    self.awoken = False
+
+  def init_device(self):
     wakeup_and_blind = self.generate_command(0x01, 0x01) # wake up the device
     adc_res = self.generate_command(0x03, 0x0C) # set ADC resolution to 16 bits
 
     print("Initializing capture settings")
 
     self.send_command(wakeup_and_blind)
+    self.awoken = True
+
     self.send_command(adc_res)
-    if pull_ups:
+    if self.use_pull_ups:
       self.set_pull_up()
 
     self.set_bias_current(0x05)
@@ -227,7 +231,7 @@ class HTPA:
     return offset
 
   def thermal_offset(self, mean_ptat):
-    return self.scaled_mean_ptat(mean_ptat, self.th_grad, self.th_offset, self.grad_scale)
+    return ((self.th_grad * mean_ptat) / pow(2, self.grad_scale)) - self.th_offset
 
   def ambient_temperature(self, mean_ptat):
     return mean_ptat * self.ptat_grad + self.ptat_offset
@@ -338,9 +342,18 @@ class HTPA:
     self.send_command(sleep)
 
   def lookup_and_interpolate(self, t, t_ambient):
-    return interpolate_tables(t_ambient, t)
+    return interpolate_tables(t_ambient, t, device=self.device)
 
+  def __enter__(self):
+    self.init_device()
+    return self
+
+  def __exit__(self, exc_type, exc_value, exc_traceback):
+    self.close()
 
 if __name__ == '__main__':
-  with contextlib.closing(HTPA()) as htpa:
+  # FYI: The RPi already has 1.8k pull up resistors, so additional pullups are
+  #   unnecessary and is likely to be out of I2C spec and will increase
+  #   current draw
+  with HTPA(pull_ups=False) as htpa:
     htpa.measure_observed_offset()

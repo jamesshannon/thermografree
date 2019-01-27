@@ -1,7 +1,11 @@
+from __future__ import division
+
 import numpy as np
 
-def interpolate_tables(t_ambient, image, device='HTPA32x32dR1L2_1HiSiF5_0_Gain3k3_Extended'):
+def interpolate_tables(t_ambient, image, device=None):
   ta_axes, dk_axes, table, offset = get_table_and_axes(device)
+
+  assert table.shape == (len(dk_axes), len(ta_axes))
 
   ta_axes = np.array(ta_axes)
   dk_axes = np.array(dk_axes)
@@ -9,36 +13,28 @@ def interpolate_tables(t_ambient, image, device='HTPA32x32dR1L2_1HiSiF5_0_Gain3k
   d_ta = ta_axes[1] - ta_axes[0]
   d_dk = dk_axes[1] - dk_axes[0]
 
-  data = image.ravel() + offset
-  ta_idx = np.searchsorted(ta_axes, t_ambient)
-  dk_idx = np.searchsorted(dk_axes, data)
+  data = image.ravel()
+  ta_idx = np.searchsorted(ta_axes, t_ambient) - 1
+  dk_idx = np.searchsorted(dk_axes, data) - 1
 
-  t_11 = table[ta_idx - 1][dk_idx - 1]
-  t_12 = table[ta_idx - 1][dk_idx]
-  t_21 = table[ta_idx][dk_idx - 1]
-  t_22 = table[ta_idx][dk_idx]
+  #subt = table[dk_idx:dk_idx + 1, ta_idx:ta_idx + 1]
+  x1 = ta_axes[ta_idx]
+  y1 = dk_axes[dk_idx]
 
-  x1, x2 = ta_axes[ta_idx - 1], ta_axes[ta_idx]
-  y1, y2 = dk_axes[dk_idx - 1], dk_axes[dk_idx]
+  table_y_x = table[dk_idx].transpose()[ta_idx]
+  table_y_x1 = table[dk_idx].transpose()[ta_idx + 1]
+  table_y1_x = table[dk_idx + 1].transpose()[ta_idx]
+  table_y1_x1 = table[dk_idx + 1].transpose()[ta_idx + 1]
 
-  dd1 = (data - y1)
-  dd2 = (y2 - data)
-  dta1 = (t_ambient - x1)
-  dta2 = (x2 - t_ambient)
+  v_x = (table_y_x1 - table_y_x) * (t_ambient - x1) / d_ta + table_y_x
+  v_y = (table_y1_x1 - table_y1_x) * (t_ambient - x1) / d_ta + table_y1_x
 
-  result = (t_11 * dta2 * dd2 +
-            t_21 * dta1 * dd2 +
-            t_12 * dta2 * dd1 +
-            t_22 * dta1 * dd1) / (d_ta * d_dk)
+  result = (v_y - v_x) * (data - y1) / d_dk + v_x
 
   return result.reshape(image.shape)
 
-  # not sure on the math of bi-linear interpolation
-  # numpy+scipy  has https://docs.scipy.org/doc/numpy-1.13.0/reference/generated/numpy.interp.html
-  # and https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.interp2d.html
-
-
-def get_table_and_axes(device='HTPA32x32dR1L2_1HiSiF5_0_Gain3k3_Extended'):
+def get_table_and_axes(device=None):
+  device = device or 'HTPA32x32dR1L2_1HiSiF5_0_Gain3k3_Extended'
   if device == 'HTPA32x32dR1L2_1HiSiF5_0_Gain3k3_Extended':
     table = np.array(
       ((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 1911, 2326),
@@ -1637,7 +1633,7 @@ def get_table_and_axes(device='HTPA32x32dR1L2_1HiSiF5_0_Gain3k3_Extended'):
        (11921, 11925, 11931, 11936, 11943, 11949, 11956, 11963, 11971, 11979, 11988, 11997),
        (11923, 11928, 11933, 11939, 11945, 11952, 11958, 11966, 11974, 11982, 11991, 12000)),
       dtype='uint16'
-    ).T
+    )
 
     ta_axes = (2532, 2632, 2732, 2832, 2932, 3032, 3132, 3232, 3332, 3432, 3532, 3632)
     dk_axes = (
@@ -1742,5 +1738,26 @@ def get_table_and_axes(device='HTPA32x32dR1L2_1HiSiF5_0_Gain3k3_Extended'):
     101888, 101952, 102016)
 
     return ta_axes, dk_axes, table, 1792
+  elif device == 'lookup_table_example':
+    table = np.array(
+      ((1494, 2128, 2491, 2775),
+       (2466, 2692, 2898, 3091),
+       (2882, 3032, 3182, 3332),
+       (3170, 3285, 3406, 3530),
+       (3396, 3491, 3592, 3699),
+       (3584, 3665, 3754, 3848),
+       (3746, 3818, 3897, 3981),
+       (3890, 3954, 4025, 4102),
+       (4019, 4078, 4143, 4214),
+       (4137, 4191, 4251, 4317),
+       (4246, 4296, 4351, 4413),
+       (4347, 4393, 4445, 4503),
+       (4441, 4485, 4534, 4588)),
+      dtype='uint16')
+
+    ta_axes = (2882, 3032, 3182, 3332)
+    dk_axes = (-64, -32, 0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320)
+
+    return ta_axes, dk_axes, table, 64
   else:
     raise ValueError('Device not found')
