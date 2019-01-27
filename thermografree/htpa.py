@@ -137,7 +137,7 @@ class HTPA:
     # DeadPixAdr as 16 bit unsigned values
     self.dead_pix_addr = np.frombuffer(ebytes[0x0080:0x00B0], dtype='<u2')\
         .copy()
-    self.dead_pix_mask = np.frombuffer(ebytes[0x00B0:0x00C8], dtype='<u2')\
+    self.dead_pix_mask = np.frombuffer(ebytes[0x00B0:0x00C8], dtype='<u1')\
         .copy()
 
     # VddCompGradij stored as 16 bit signed values
@@ -229,6 +229,64 @@ class HTPA:
     t = self.lookup_and_interpolate(v, t_ambient)
 
     return t + self.global_offset
+
+  @staticmethod
+  def get_pix_idx(pix):
+    # return row & col
+    return (pix // 32, (pix % 32) - 1)
+
+  @staticmethod
+  def get_actual_pixels(pixels):
+    """Convert readout pixels to actual pixels.
+
+    EEPROM data is stored as readout pixels and pixel numbers need to be
+    converted to match the read order of the pixels.
+
+    Args:
+        pixels (np.ndarray): Numpy array of readout pixel numbers
+
+    Returns:
+        np.ndarray: Numpy array of actual pixel numbers
+    """
+    bot_mask = pixels > 0x200
+    bot_vals = pixels[bot_mask]
+    pixels[bot_mask] = 1024 + 512 - bot_vals + (bot_vals % 32 * 2) - 32
+
+    return pixels
+
+  @staticmethod
+  def update_img_with_masked_avg(img, num_dead, pixels, masks):
+    for i in range(num_dead):
+      mask = masks[i]
+
+      pix = pixels[i]
+      pix_y, pix_x = HTPA.get_pix_idx(pix)
+
+      surrounding_vals = HTPA.get_masked_avg(img, pix, mask)
+
+      img[pix_y][pix_x] = surrounding_vals
+
+    return img
+
+  @staticmethod
+  def get_masked_avg(img, pix, mask):
+    pix_y, pix_x = HTPA.get_pix_idx(pix)
+
+    if pix > 0x200:
+      # bottom half mask ordering by LSB
+      mask_trans = ((1,0),(1,1),(0,1),(-1,1),(-1,0),(-1,-1),(0,-1),(1,-1))
+    else:
+      # top half mask ordering by LSB
+      mask_trans = ((-1,0),(-1,1),(0,1),(1,1),(1,0),(1,-1),(0,-1),(-1,-1))
+
+    vals = 0
+
+    for i in range(8):
+      if mask >> i & 0x1:
+        off_y, off_x = mask_trans[i]
+        vals += img[pix_y + off_y][pix_x + off_x]
+
+    return vals / bin(mask).count('1')
 
   @staticmethod
   def scaled_mean_ptat(mean_ptat, coef, offset, scale):
