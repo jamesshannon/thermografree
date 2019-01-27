@@ -90,6 +90,11 @@ def test_broadcast_offset_param(htpa):
   assert offsets.shape == (32, 32)
   assert np.array_equal(offsets, expected)
 
+def test_get_pix_idx():
+  assert htpa_module.HTPA.get_pix_idx(15) == (0, 15)
+  assert htpa_module.HTPA.get_pix_idx(512) == (16, 0)
+  assert htpa_module.HTPA.get_pix_idx(703) == (21, 31)
+
 def test_actual_pixels():
   inp = np.array((15, 300, 500, 997, 661))
   expect = (15, 300, 500, 517, 977)
@@ -113,19 +118,21 @@ The datasheet says that 661 should be 997, but the correct answer APPEARS
 def _get_masked_test_data():
   img_arr = np.full((32, 32), 100, dtype='float')
   surrounding_pix = ((3010, 3012, 3005), (3007, 20, 3008), (3008, 3011, 3009))
-
-  # first we test pixel 15 from the datasheet
-  img_arr[0:2,13:16] = surrounding_pix[1:]
-
-  # pixel 300
-  img_arr[8:11,10:13] = surrounding_pix
-
-  # pixel 977 (bottom half)
-  img_arr[29:32,15:18] = surrounding_pix
-
   dead_pixels = (15, 300, 977)
   masks = (0x7c, 0x8f, 0xFE)
   expected = (3008.6, 3008.8, 3008.428)
+
+  # update subsets of the array with the surrounding pix blocks
+  for pix, surrouding in zip(dead_pixels, surrounding_pix):
+    pix_y, pix_x = htpa_module.HTPA.get_pix_idx(pix)
+
+    if pix_y == 0:
+      # This replaces a chunk that's at the top edge of the array by only
+      #   replacing 2 rows (not 3). Other edges (left,right,bottom) would have
+      #   to be handled separately
+      img_arr[0:pix_y+2,pix_x-1:pix_x+2] = surrounding_pix[1:]
+    else:
+      img_arr[pix_y-1:pix_y+2,pix_x-1:pix_x+2] = surrounding_pix
 
   return img_arr, dead_pixels, masks, expected
 

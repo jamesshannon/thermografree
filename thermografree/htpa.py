@@ -232,8 +232,17 @@ class HTPA:
 
   @staticmethod
   def get_pix_idx(pix):
-    # return row & col
-    return (pix // 32, (pix % 32) - 1)
+    """Get the 2d array index for a given pixel number.
+
+    NB: Returns (y, x) because numpy array is row-based.
+
+    Args:
+        pix (int): Pixel number. HTPA is 0 based. E.g., [0-1024)
+
+    Returns:
+        (int,int): (0-based) index of  pixel within a 32x32 array.
+    """
+    return (pix // 32, pix % 32)
 
   @staticmethod
   def get_actual_pixels(pixels):
@@ -241,6 +250,11 @@ class HTPA:
 
     EEPROM data is stored as readout pixels and pixel numbers need to be
     converted to match the read order of the pixels.
+
+    Readout pixels are the same as actual pixels when value <= 512 (0x200)
+    but above that they're flipped around a bit.
+
+    Described in section 10.7.
 
     Args:
         pixels (np.ndarray): Numpy array of readout pixel numbers
@@ -256,20 +270,52 @@ class HTPA:
 
   @staticmethod
   def update_img_with_masked_avg(img, num_dead, pixels, masks):
+    """Update dead pixels with average of surrounding pixels (based on mask).
+
+    Described in Section 10.7.
+
+    Args:
+        img (np.ndarray): 2d numpy array
+        num_dead (int): Number of dead pixels
+        pixels (list(int)): List of pixel numbers, adapted for readout-order
+        masks (list(int)): List of masks
+
+    Returns:
+        np.ndarray: Original array with updated pixels
+    """
     for i in range(num_dead):
       mask = masks[i]
-
       pix = pixels[i]
+
+      # The eeprom will return more pixels than are actually dead -- but any
+      #   above the num_dead count will be 0.
+      assert pix != 0
+
       pix_y, pix_x = HTPA.get_pix_idx(pix)
 
-      surrounding_vals = HTPA.get_masked_avg(img, pix, mask)
-
-      img[pix_y][pix_x] = surrounding_vals
+      img[pix_y][pix_x] = HTPA.get_masked_avg(img, pix, mask)
 
     return img
 
   @staticmethod
   def get_masked_avg(img, pix, mask):
+    """Get the average value of surrounding pixels based on a HTPA mask.
+
+    The average value of up to 8 pixels surrounding a given pixel. The subset
+    of the 8 which are included is based positions in the bitmask.
+
+    Described in Section 10.7.
+
+    Args:
+        img (np.ndarray): 2d numpy array
+        pix (int): Pixel number, adapted for readout-order
+        mask (int): 8-bit mask.
+          We assume that the device will not ask us to read pixels which
+          don't exist (are out of bounds).
+
+    Returns:
+        float: Average value of masked surrounding pixels.
+    """
     pix_y, pix_x = HTPA.get_pix_idx(pix)
 
     if pix > 0x200:
