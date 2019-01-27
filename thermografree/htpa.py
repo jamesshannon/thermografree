@@ -53,7 +53,7 @@ class HTPA:
 
     self.address = address
     self.i2c = I2C("/dev/i2c-1")
-    self.use_pullups = pull_ups
+    self.use_pull_ups = pull_ups
 
     self.awoken = False
 
@@ -86,7 +86,7 @@ class HTPA:
     self.set_bias_current(self.calib_bias)
     self.set_bpa_current(self.calib_bpa)
     self.set_clock_speed(self.calib_clk)
-    if pull_ups:
+    if self.use_pull_ups:
       self.set_pull_up(self.calib_pu)
 
     # initialize offset to zero
@@ -120,7 +120,14 @@ class HTPA:
     self.i2c.transfer(eeprom_address, q2)
     return np.array(q1[1].data + q2[1].data)
 
-  def broadcast_offset_param(self, data):
+  @staticmethod
+  def flip_bottom_part(data):
+    shape = data.shape
+    data = data.reshape((-1, 32))
+    return np.flipud(data).reshape(shape)
+
+  @staticmethod
+  def broadcast_offset_param(data):
     return np.array([[data[int(i / 16)][(j + i * 32) % 128] for j in range(32)] for i in range(32)])
 
   def extract_eeprom_parameters(self, eeprom):
@@ -135,14 +142,18 @@ class HTPA:
 
     # VddCompGradij stored as 16 bit signed values
     # JS: Looks to be an (8, 32) shape
-    self.vdd_comp_grad = self.broadcast_offset_param(np.frombuffer(ebytes[0x0340:0x0540], dtype='<i2')\
-      .copy().reshape((2, -1)))
+    self.vdd_comp_grad = np.frombuffer(ebytes[0x0340:0x0540], dtype='<i2')\
+      .copy().reshape((2, -1))
+    self.vdd_comp_grad[1] = self.flip_bottom_part(self.vdd_comp_grad[1])
+    self.vdd_comp_grad = self.broadcast_offset_param(self.vdd_comp_grad)
 
     # VddCompOffij stored as 16 bit signed values
     # JS: Though the original thermografee code read as unsigned
     # JS: Looks to be an (8, 32) shape
-    self.vdd_comp_offset = self.broadcast_offset_param(np.frombuffer(ebytes[0x0540:0x0740], dtype='<i2')\
-      .copy().reshape((2, -1)))
+    self.vdd_comp_offset = np.frombuffer(ebytes[0x0540:0x0740], dtype='<i2')\
+      .copy().reshape((2, -1))
+    self.vdd_comp_offset[1] = self.flip_bottom_part(self.vdd_comp_offset[1])
+    self.vdd_comp_offset = self.broadcast_offset_param(self.vdd_comp_offset)
 
     # ThGradij stored as 16 bit signed values
     self.th_grad = np.frombuffer(ebytes[0x0740:0x0F40], dtype='<i2').copy()\
@@ -290,7 +301,9 @@ class HTPA:
       vdds = np.zeros(2)
       vdds[block + 0] = top_data[0]
       vdds[block + 1] = bottom_data[0]
-      return self.broadcast_offset_param(np.vstack([top_data, bottom_data])), vdds
+      return self.broadcast_offset_param(np.vstack([top_data[1:],
+                                                    self.flip_bottom_part(bottom_data[1:])
+                                                    ])), vdds
 
   def capture_image(self):
     pixel_values = np.zeros(1024)
@@ -351,32 +364,17 @@ class HTPA:
   def __exit__(self, exc_type, exc_value, exc_traceback):
     self.close()
 
-def _to_celsius(dK, rnd=2):
+def to_celsius(dK, rnd=2):
   """Convert degrees Kelvin to degrees Celsius.
 
   Args:
-      vals (float,ndarray): K value (or array of values)
+      vals (float,ndarray): dK (deci-Kelvin or K / 10) value (or array of values)
       rnd (int, optional): Decimal points to round to
 
   Returns:
       float,ndarray: Rounded value(s) in degrees Celsius
   """
-  return np.around(dK - 273.15, rnd)
-
-def _save_img(fname, celsius_arr):
-  img_range = (np.nanmin(celsius_arr), np.nanmax(celsius_arr))
-
-  # subtract the lower bound from the array so that that value becomes 0
-  #   then multiply everything by the multiplier to distribute the values
-  #   inside of the range
-  scale = 255 / (img_range[1] - img_range[0])
-
-  # astype() causes nan's to become 0
-  img = np.clip((celsius_arr - img_range[0]) * scale, 0, 255).astype('uint8')
-
-  img = cv2.applyColorMap(img, cv2.COLORMAP_SPRING)
-
-  cv2.imwrite(fname, img, options)
+  return np.around(dK / 10.0 - 273.15, rnd)
 
 
 if __name__ == '__main__':

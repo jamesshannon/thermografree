@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
+from itertools import chain
 
-import htpa as htpa_module
+from thermografree import htpa as htpa_module
 
 mean_vdd = 35000
 mean_ptat = 38152
@@ -68,6 +69,15 @@ def test_voltage_offset(htpa):
 def test_sensitivity_compensation(htpa):
   assert htpa.sensitivity_compensation(198) == pytest.approx(182, rel=0.25)
 
+
+def test_flip_bottom_part():
+  expected = np.array(range(256)).reshape((2, 128))
+  input = np.array(list(chain(range(128),
+                              range(224, 256),
+                              range(192, 224),
+                              range(160, 192),
+                              range(128, 160)))).reshape((2, 128))
+  assert np.equal(expected[1], htpa_module.HTPA.flip_bottom_part(input[1])).all()
 
 
 

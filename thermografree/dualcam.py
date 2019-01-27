@@ -9,7 +9,7 @@ from picamera.array import PiRGBArray
 from picamera import PiCamera
 from imutils.video import VideoStream
 import imutils
-from htpa import *
+from thermografree.htpa import *
 import pickle
 import copy
 
@@ -32,7 +32,7 @@ def ir_capture(image_queue, calibrate, stop, commands, raw_image_queue):
             elif cmd[0] == 'clock':
                 dev.set_clock_speed(cmd[1])
             elif cmd[0] == 'cm':
-                dev.set_cm_current(cmd[1])
+                dev.set_bpa_current(cmd[1])
 
         if calibrate.isSet():
             print "IR sensor calibrating"

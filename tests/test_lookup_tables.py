@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-import lookup_tables
+from thermografree import lookup_tables
 
 def test_lookup_table_spreadsheet():
   v_vdd_comp = np.full((32,32), 182)
