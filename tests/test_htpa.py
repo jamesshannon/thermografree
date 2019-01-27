@@ -69,7 +69,6 @@ def test_voltage_offset(htpa):
 def test_sensitivity_compensation(htpa):
   assert htpa.sensitivity_compensation(198) == pytest.approx(182, rel=0.25)
 
-
 def test_flip_bottom_part():
   expected = np.array(range(256)).reshape((2, 128))
   input = np.array(list(chain(range(128),
@@ -79,6 +78,15 @@ def test_flip_bottom_part():
                               range(128, 160)))).reshape((2, 128))
   assert np.equal(expected[1], htpa_module.HTPA.flip_bottom_part(input[1])).all()
 
+def test_broadcast_offset_param(htpa):
+  # create a list with 8 rows and 32 cols (with values as the rownumber)
+  offsets = np.array([[i] * 32 for i in range(8)]).reshape((2, -1))
+  # expected output is the rows repeated in groups of 4 for each half
+  expected = ([[i] * 32 for i in range(4)] * 4 \
+              + [[i] * 32 for i in range(4, 8)] * 4)
 
+  offsets = htpa.broadcast_offset_param(offsets)
 
+  assert offsets.shape == (32, 32)
+  assert np.array_equal(offsets, expected)
 
