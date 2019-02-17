@@ -11,10 +11,10 @@ while(True):
 	if (i == 5):
 		dev.measure_observed_offset()
 
-	(pixel_values, ptats) = dev.capture_image()
-	im = dev.temperature_compensation(pixel_values, ptats)
+	electric_offset, vdd = dev.capture_offsets()
+	pixel_values, ptats = dev.capture_image()
+	im = dev.temperature_compensation(pixel_values, electric_offset, ptats, vdd)
 	im = dev.offset_compensation(im)
-	im = dev.sensitivity_compensation(im)
 
 	# resize and scale image to make it more viewable on raspberry pi screen
 	im = cv2.resize(im, None, fx=12, fy=12)	

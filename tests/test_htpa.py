@@ -2,7 +2,10 @@ import numpy as np
 import pytest
 from itertools import chain
 
+from mock import Mock
+
 from thermografree import htpa as htpa_module
+from thermografree.htpa import flip_bottom_part, broadcast_offset_param
 
 mean_vdd = 35000
 mean_ptat = 38152
@@ -17,27 +20,32 @@ def htpa():
   htpa = htpa_module.HTPA()
 
   # Set constants as defined in the datasheet example (10.6)
-  htpa.ptat_grad = 0.0211
-  htpa.ptat_offset = 2195
+  config = Mock()
+  
+  config.PCSCALEVAL = 1e8
+  config.ptat_grad = 0.0211
+  config.ptat_offset = 2195
 
-  htpa.grad_scale = 24
-  htpa.th_grad = 11137
-  htpa.th_offset = -30
+  config.grad_scale = 24
+  config.th_grad = 11137
+  config.th_offset = -30
 
-  htpa.calib1_vdd = 33942
-  htpa.calib2_vdd = 36942
-  htpa.calib1_ptat = 30000
-  htpa.calib2_ptat = 42000
+  config.calib1_vdd = 33942
+  config.calib2_vdd = 36942
+  config.calib1_ptat = 30000
+  config.calib2_ptat = 42000
 
-  htpa.vdd_comp_grad = 10356
-  htpa.vdd_comp_offset = -14146
-  htpa.vdd_scaling_grad = 16
-  htpa.vdd_scaling_offset = 23
+  config.vdd_comp_grad = 10356
+  config.vdd_comp_offset = -14146
+  config.vdd_scaling_grad = 16
+  config.vdd_scaling_offset = 23
 
-  htpa.pix_c = 1.087 * 1e8
+  config.pix_c = 1.087 * 1e8
 
   # global_offset isn't defined in the example
-  htpa.global_offset = 0
+  config.global_offset = 0
+
+  htpa.config = config
 
   # this affects the lookup table used
   htpa.device = 'lookup_table_example'
@@ -76,7 +84,7 @@ def test_flip_bottom_part():
                             range(192, 224),
                             range(160, 192),
                             range(128, 160)))).reshape((2, 128))
-  assert np.equal(expected[1], htpa_module.HTPA.flip_bottom_part(inp[1])).all()
+  assert np.equal(expected[1], flip_bottom_part(inp[1])).all()
 
 def test_broadcast_offset_param(htpa):
   # create a list with 8 rows and 32 cols (with values as the rownumber)
@@ -85,7 +93,7 @@ def test_broadcast_offset_param(htpa):
   expected = ([[i] * 32 for i in range(4)] * 4 \
               + [[i] * 32 for i in range(4, 8)] * 4)
 
-  offsets = htpa.broadcast_offset_param(offsets)
+  offsets = broadcast_offset_param(offsets)
 
   assert offsets.shape == (32, 32)
   assert np.array_equal(offsets, expected)
