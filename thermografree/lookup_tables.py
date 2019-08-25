@@ -4,7 +4,7 @@ import os
 
 import numpy as np
 
-def interpolate_tables(t_ambient, image, device=None):
+def interpolate_tables(t_ambient, image, device):
   ta_axes, dk_axes, table, offset = get_table_and_axes(device)
 
   ta_axes = np.array(ta_axes)
@@ -32,12 +32,10 @@ def interpolate_tables(t_ambient, image, device=None):
 
   return result.reshape(image.shape)
 
-def get_table_and_axes(device=None):
-  device = device or 'HTPA32x32dR1L2_1HiSiF5_0_Gain3k3_Extended'
-  fname = '{}.npz'.format(device)
-
-  fname = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', fname)
-  with np.load(fname) as data:
+def get_table_and_axes(device):
+  fname = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       'data', '{}.npz'.format(device))
+  with np.load(fname, allow_pickle=True) as data:
     table = data['table']
     ta_axes = data['ta_axes']
     dk_axes = data['dk_axes']

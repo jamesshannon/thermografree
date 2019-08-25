@@ -5,7 +5,7 @@ from itertools import chain
 from mock import Mock
 
 from thermografree import htpa as htpa_module
-from thermografree.htpa import flip_bottom_part, broadcast_offset_param
+from thermografree.utils import flip_bottom_part, broadcast_offset_param
 
 mean_vdd = 35000
 mean_ptat = 38152
@@ -21,7 +21,7 @@ def htpa():
 
   # Set constants as defined in the datasheet example (10.6)
   config = Mock()
-  
+
   config.PCSCALEVAL = 1e8
   config.ptat_grad = 0.0211
   config.ptat_offset = 2195
@@ -120,6 +120,7 @@ The datasheet says that 661 should be 997, but the correct answer APPEARS
 885 <<< -- The datasheet says 661 should be 977
 >>>
   """
+  expect = [15, 300, 500, 517, 885]
 
   assert htpa_module.HTPA.get_actual_pixels(inp).tolist() == expect
 
