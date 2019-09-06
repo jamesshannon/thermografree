@@ -11,9 +11,21 @@ UNPACK_FORMATS = {
     False: {1: 'B', 2: 'H', 4: 'f',},
 }
 
-def _unpack(byts, signed=False):
-  fmt = '<' + UNPACK_FORMATS[signed][len(byts)]
+def _unpack(byts, signed=False, lng=False):
+  # Since bytes objects are sequences of integers (akin to a tuple), for a
+  #   bytes object b, b[0] will be an integer, while b[0:1] will be a bytes
+  #   object of length 1.
+  if lng:
+    assert len(byts) == 4
+    fmt = '<L'
+  else:
+    if isinstance(byts, int):
+      byts = bytes([byts])
+
+    fmt = '<' + UNPACK_FORMATS[signed][len(byts)]
+
   return struct.unpack(fmt, byts)[0]
+
 class EEPROMConfiguration:
   """
   EEPROM configuration parameters
