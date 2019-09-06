@@ -26,7 +26,6 @@ from __future__ import division
 
 import copy
 import logging
-import struct
 import time
 
 import numpy as np
@@ -42,11 +41,6 @@ logger = logging.getLogger(__name__)
 revisions = {
   0: {'blockshift': 2},
   1: {'blockshift': 4},
-}
-
-unpack_formats = {
-    True: {1: 'b', 2: 'h', 4: 'f',},
-    False: {1: 'B', 2: 'H', 4: 'f',},
 }
 
 

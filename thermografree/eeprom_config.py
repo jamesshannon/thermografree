@@ -1,10 +1,19 @@
 """HTPA EEPROM configuration parameters"""
+import struct
 
 import numpy as np
 
 from .utils import broadcast_offset_param
 from .utils import flip_bottom_part
 
+UNPACK_FORMATS = {
+    True: {1: 'b', 2: 'h', 4: 'f',},
+    False: {1: 'B', 2: 'H', 4: 'f',},
+}
+
+def _unpack(byts, signed=False):
+  fmt = '<' + UNPACK_FORMATS[signed][len(byts)]
+  return struct.unpack(fmt, byts)[0]
 class EEPROMConfiguration:
   """
   EEPROM configuration parameters
@@ -57,26 +66,26 @@ class EEPROMConfiguration:
     self.P[16:, :] = np.flipud(self.P[16:,:])
 
     epsilon = eeprom[0x000D]
-    self.global_offset = self.unpack(ebytes[0x0054], signed=True)
+    self.global_offset = _unpack(ebytes[0x0054], signed=True)
     #  GlobalGain and VddCalib are both stored as 16 bit unsigned
-    global_gain = self.unpack(ebytes[0x0055:0x0057])
+    global_gain = _unpack(ebytes[0x0055:0x0057])
 
-    p_min = self.unpack(ebytes[0x0000:0x0004])
-    p_max = self.unpack(ebytes[0x0004:0x0008])
+    p_min = _unpack(ebytes[0x0000:0x0004])
+    p_max = _unpack(ebytes[0x0004:0x0008])
     self.pix_c = ((self.P * (p_max - p_min) / 65535. + p_min)
                   * (epsilon / 100) * (global_gain / 100))
 
     self.grad_scale = eeprom[0x0008]
     #  GlobalGain and VddCalib are both stored as 16 bit unsigned
-    self.vdd_calib = self.unpack(ebytes[0x0046:0x0048])
+    self.vdd_calib = _unpack(ebytes[0x0046:0x0048])
     self.vdd = 3280.0
     self.vdd_scaling_grad = eeprom[0x004E]
     self.vdd_scaling_offset = eeprom[0x004F]
 
-    self.ptat_grad = self.unpack(ebytes[0x0034:0x0038])
-    self.ptat_offset = self.unpack(ebytes[0x0038:0x003c])
+    self.ptat_grad = _unpack(ebytes[0x0034:0x0038])
+    self.ptat_offset = _unpack(ebytes[0x0038:0x003c])
 
-    self.table_num = self.unpack(ebytes[0x000B:0x000D])
+    self.table_num = _unpack(ebytes[0x000B:0x000D])
 
     self.calib_mbit = eeprom[0x001A]
     self.calib_bias = eeprom[0x001B]
@@ -84,14 +93,9 @@ class EEPROMConfiguration:
     self.calib_bpa = eeprom[0x001D]
     self.calib_pu = eeprom[0x001E]
 
-    self.calib1_vdd = self.unpack(ebytes[0x0026:0x0028])
-    self.calib2_vdd = self.unpack(ebytes[0x0028:0x002A])
-    self.calib1_ptat = self.unpack(ebytes[0x003C:0x003E])
-    self.calib2_ptat = self.unpack(ebytes[0x003E:0x0040])
+    self.calib1_vdd = _unpack(ebytes[0x0026:0x0028])
+    self.calib2_vdd = _unpack(ebytes[0x0028:0x002A])
+    self.calib1_ptat = _unpack(ebytes[0x003C:0x003E])
+    self.calib2_ptat = _unpack(ebytes[0x003E:0x0040])
 
     self.device_id = struct.unpack('<L', ebytes[0x0074:0x0078])[0]
-
-  @staticmethod
-  def unpack(byts, signed=False):
-    fmt = '<' + unpack_formats[signed][len(byts)]
-    return struct.unpack(fmt, byts)[0]
