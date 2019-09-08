@@ -345,6 +345,14 @@ class HTPA:
   def offset_compensation(self, im):
     return im - self.offset
 
+  def measure_temperatures(self):
+    """Measure temperatures in dK"""
+    electric_offset, vdd = self.capture_offsets()
+    pixel_values, ptats = self.capture_image()
+    thermal_image = self.temperature_compensation(pixel_values, electric_offset, ptats, vdd)
+    thermal_image = self.offset_compensation(thermal_image)
+    return thermal_image
+
   def measure_observed_offset(self):
     logger.info(('Measuring observed offsets. Camera should be against '
                  'uniform temperature surface.'))
