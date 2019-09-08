@@ -7,8 +7,8 @@ import numpy as np
 def interpolate_tables(t_ambient, image, device):
   ta_axes, dk_axes, table, offset = get_table_and_axes(device)
 
-  ta_axes = np.array(ta_axes)
-  dk_axes = np.array(dk_axes) - offset
+  ta_axes = np.array(ta_axes, dtype='float')
+  dk_axes = np.array(dk_axes, dtype='float') - offset
 
   d_ta = ta_axes[1] - ta_axes[0]
   d_dk = dk_axes[1] - dk_axes[0]
