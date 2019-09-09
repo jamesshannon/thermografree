@@ -4,9 +4,9 @@ import os
 
 import numpy as np
 
-def interpolate_tables(t_ambient, image, device):
+def interpolate_tables(t_ambient, image, device, table_num):
   # TODO: More unit tests for me, please
-  ta_axes, dk_axes, table, offset = get_table_and_axes(device)
+  ta_axes, dk_axes, table, offset = get_table_and_axes(device, table_num)
 
   ta_axes = np.array(ta_axes, dtype='float')
   dk_axes = np.array(dk_axes, dtype='float') - offset
@@ -33,7 +33,7 @@ def interpolate_tables(t_ambient, image, device):
 
   return result.reshape(image.shape)
 
-def get_table_and_axes(device):
+def get_table_and_axes(device, table_num):
   fname = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                        'data', '{}.npz'.format(device))
   with np.load(fname, allow_pickle=True) as data:
@@ -46,6 +46,9 @@ def get_table_and_axes(device):
     # Cross-check the data we've loaded.
     # TODO: Move some of this to the table .npz writing (though keep some here)
     assert metadata['device'] == device
+    assert not table_num or metadata['tablenumber'] == table_num, \
+        '{} has table number {} not {}'.format(fname, metadata['tablenumber'],
+                                               table_num)
 
     assert len(ta_axes.shape) == 1
     assert len(dk_axes.shape) == 1

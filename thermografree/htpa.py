@@ -526,7 +526,7 @@ class HTPA:
     Returns:
       np.ndarray: 'true' thermal image
     """
-    return interpolate_tables(t_ambient, t, device=self.device)
+    return interpolate_tables(t_ambient, t, self.device, self.config.table_num)
 
   def __enter__(self):
     self.init_device()

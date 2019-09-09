@@ -1,4 +1,6 @@
 """ Test the eeprom_config module """
+import numpy as np
+
 import pytest
 
 from thermografree.eeprom_config import EEPROMConfiguration

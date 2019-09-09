@@ -49,6 +49,7 @@ def htpa():
 
   # this affects the lookup table used
   htpa.device = 'lookup_table_example'
+  htpa.config.table_num = None
 
   return htpa
 
