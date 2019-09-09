@@ -82,7 +82,7 @@ class EEPROMConfiguration:
     self.epsilon = eeprom[0x000D]
     self.global_offset = _unpack(ebytes[0x0054], signed=True)
     #  GlobalGain and VddCalib are both stored as 16 bit unsigned
-    global_gain = _unpack(ebytes[0x0055:0x0057])
+    self.global_gain = _unpack(ebytes[0x0055:0x0057])
 
     self.p_min = _unpack(ebytes[0x0000:0x0004])
     self.p_max = _unpack(ebytes[0x0004:0x0008])
@@ -93,7 +93,7 @@ class EEPROMConfiguration:
     #   epsilon but not globalgain, so we keep _pix_c without globalgain for
     #   unit testing purposes
     # Note, though, that the sample C code doesn't use global gain
-    self.pix_c = self._pix_c.copy() * (global_gain / 100)
+    self.pix_c = self._pix_c.copy() * (self.global_gain / 10000)
     self.pix_c[16:, :] = np.flipud(self.pix_c[16:,:])
 
     self.grad_scale = eeprom[0x0008]
