@@ -11,7 +11,7 @@ def test_load_htpa_l2_1_datafile():
   assert table.shape == (1595, 12)
 
 
-def test_lookup_table_spreadsheet():
+def test_lookup_table_spreadsheet_interpolate():
   """Test the lookup table against the example lookup table spreadsheet."""
   v_vdd_comp = np.full((32,32), 182)
   a = lookup_tables.interpolate_tables(3000, v_vdd_comp, 'lookup_table_example')

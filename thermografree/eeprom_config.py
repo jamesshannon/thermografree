@@ -59,33 +59,42 @@ class EEPROMConfiguration:
     self.vdd_comp_offset = broadcast_offset_param(self.vdd_comp_offset)
 
     # ThGradij stored as 16 bit signed values
-    self.th_grad = np.frombuffer(ebytes[0x0740:0x0F40], dtype='<i2').copy() \
+    self._th_grad = np.frombuffer(ebytes[0x0740:0x0F40], dtype='<i2').copy() \
       .reshape((32, 32))
+    self.th_grad = self._th_grad.copy()
 
     # ThOffsetij stored as 16 bit signed values
     # JS: Though the original thermografee code read as unsigned
-    self.th_offset = np.frombuffer(ebytes[0x0F40:0x1740], dtype='<i2').copy() \
+    self._th_offset = np.frombuffer(ebytes[0x0F40:0x1740], dtype='<i2').copy() \
       .reshape((32, 32))
+    self.th_offset = self._th_offset.copy()
 
     # Pij stored as 16 bit unsigned values
-    self.P = np.frombuffer(ebytes[0x1740:], dtype='<u2').copy() \
+    # NB: Not yet flipped
+    self._P = np.frombuffer(ebytes[0x1740:], dtype='<u2').copy() \
       .reshape((32, 32))
 
     # The corresponding order of ThGradij, ThOffsetij, and Pij to the
     #   Pixelnumber is given by the following overview:...
     self.th_grad[16:,:] = np.flipud(self.th_grad[16:,:])
     self.th_offset[16:,:] = np.flipud(self.th_offset[16:,:])
-    self.P[16:, :] = np.flipud(self.P[16:,:])
 
-    epsilon = eeprom[0x000D]
+    self.epsilon = eeprom[0x000D]
     self.global_offset = _unpack(ebytes[0x0054], signed=True)
     #  GlobalGain and VddCalib are both stored as 16 bit unsigned
     global_gain = _unpack(ebytes[0x0055:0x0057])
 
-    p_min = _unpack(ebytes[0x0000:0x0004])
-    p_max = _unpack(ebytes[0x0004:0x0008])
-    self.pix_c = ((self.P * (p_max - p_min) / 65535. + p_min)
-                  * (epsilon / 100) * (global_gain / 100))
+    self.p_min = _unpack(ebytes[0x0000:0x0004])
+    self.p_max = _unpack(ebytes[0x0004:0x0008])
+    self._pix_c = ((self._P * (self.p_max - self.p_min) / 65535. + self.p_min)
+                  * (self.epsilon / 100))
+
+    # Add gain and flip the values. The example spreadsheet multiplies by
+    #   epsilon but not globalgain, so we keep _pix_c without globalgain for
+    #   unit testing purposes
+    # Note, though, that the sample C code doesn't use global gain
+    self.pix_c = self._pix_c.copy() * (global_gain / 100)
+    self.pix_c[16:, :] = np.flipud(self.pix_c[16:,:])
 
     self.grad_scale = eeprom[0x0008]
     #  GlobalGain and VddCalib are both stored as 16 bit unsigned
