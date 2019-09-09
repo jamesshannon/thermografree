@@ -9,6 +9,7 @@ from thermografree.utils import flip_bottom_part, broadcast_offset_param
 
 mean_vdd = 35000
 mean_ptat = 38152
+v00 = 34435
 
 class I2CMock(object):
   def __init__(self, dev):
@@ -58,7 +59,7 @@ def test_ambient_temp(htpa):
 
 def test_thermal_compensation(htpa):
   # function does not include V00 (as in the example)
-  assert htpa.thermal_offset(mean_ptat) == pytest.approx(55, rel=0.5)
+  assert v00 - htpa.thermal_offset(mean_ptat) == pytest.approx(34439, rel=1e-3)
 
 def test_electrical_compensation(htpa):
   img = np.full((32,32), 34435, dtype='float64')

@@ -313,10 +313,18 @@ class HTPA:
       mean_ptat (float): mean PTAT (temperature) sensor reading
 
     Returns:
-
+      (32,32) array of offsets, to be subtracted from Vij (raw pixel data)
     """
+    # This is much more complex than the datasheet because we're returning an
+    #   offset rather than doing the math. The return value should be
+    #   subtractable from the pixel data (to keep some consistency with the
+    #   datasheet).
+    # Formula in datasheet is Vij - [gradient] - offset
+    # If the values are 100, 50, 20 then result should be 30 (100 - 50 - 20)
+    # If we return 50 - 20 (30) and that's later subtracted from 100 we get 70
+    # Instead we do (50 * -1 - 20) * -1 = 70. 100 - 70 = 30
     return (((self.config.th_grad * mean_ptat) /
-              pow(2, self.config.grad_scale)) - self.config.th_offset)
+              pow(2, self.config.grad_scale) * -1) - self.config.th_offset) * -1
 
   def ambient_temperature(self, mean_ptat):
     """
