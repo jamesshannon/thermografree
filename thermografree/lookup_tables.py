@@ -1,5 +1,6 @@
 from __future__ import division
 
+import functools
 import os
 
 import numpy as np
@@ -33,6 +34,7 @@ def interpolate_tables(t_ambient, image, device, table_num):
 
   return result.reshape(image.shape)
 
+@functools.lru_cache(maxsize=3)
 def get_table_and_axes(device, table_num):
   fname = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                        'data', '{}.npz'.format(device))
