@@ -16,7 +16,7 @@ def test_lookup_table_spreadsheet_interpolate():
   v_vdd_comp = np.full((32,32), 182)
   a = lookup_tables.interpolate_tables(3000, v_vdd_comp,
                                        'lookup_table_example', None)
-  assert a[0][0] == pytest.approx(4026, rel=0.5)
+  assert a[0][0] == pytest.approx(4026, rel=1e-3)
 
 
 @pytest.mark.skip
