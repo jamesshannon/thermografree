@@ -328,7 +328,7 @@ class HTPA:
 
   def ambient_temperature(self, mean_ptat):
     """
-    Calculates ambient temperature
+    Calculates ambient temperature as per 9.1
 
     Args:
       mean_ptat (float): mean PTAT (temperature) sensor reading
@@ -348,10 +348,15 @@ class HTPA:
     Returns:
       np.ndarray: scaled pixel data (32, 32)
     """
-    return im *  self.config.PCSCALEVAL / self.config.pix_c
+    return im * self.config.PCSCALEVAL / self.config.pix_c
 
   def offset_compensation(self, im):
     return im - self.offset
+
+  def measure_ambient_temperature(self):
+    """Measure the ambient temperature. Returns dK."""
+    pixel_values, ptats = self.capture_image()
+    return self.ambient_temperature(np.mean(ptats))
 
   def measure_temperatures(self):
     """Measure temperatures in dK"""
@@ -548,7 +553,7 @@ def to_celsius(dK, rnd=2):
   """Convert degrees Kelvin to degrees Celsius.
 
   Args:
-      vals (float,ndarray): dK (deci-Kelvin or K / 10) value
+      vals (float,ndarray): dK (deci-Kelvin or K * 10) value
         (or array of values)
       rnd (int, optional): Decimal points to round to
 
