@@ -47,18 +47,16 @@ def get_table_and_axes(device, table_num):
 
     # Cross-check the data we've loaded.
     # TODO: Move some of this to the table .npz writing (though keep some here)
-    assert metadata['device'] == device
-    assert not table_num or metadata['tablenumber'] == table_num, \
-        '{} has table number {} not {}'.format(fname, metadata['tablenumber'],
+    assert metadata['_DEVICE_NAME'] == device
+    assert not table_num or metadata['TABLENUMBER'] == table_num, \
+        '{} has table number {} not {}'.format(fname, metadata['TABLENUMBER'],
                                                table_num)
 
     assert len(ta_axes.shape) == 1
     assert len(dk_axes.shape) == 1
-    assert len(ta_axes) == metadata['nroftaelements']
-    assert len(dk_axes) == metadata['nrofadelements']
     assert table.shape == (len(dk_axes), len(ta_axes))
 
-    assert (ta_axes[1] - ta_axes[0]) == metadata['taequidistance']
-    assert (dk_axes[1] - dk_axes[0]) == metadata['adequidistance']
+    assert (ta_axes[1] - ta_axes[0]) == metadata['TAEQUIDISTANCE']
+    assert (dk_axes[1] - dk_axes[0]) == metadata['ADEQUIDISTANCE']
 
-    return ta_axes, dk_axes, table, metadata['tableoffset']
+    return ta_axes, dk_axes, table, metadata['TABLEOFFSET']
