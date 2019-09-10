@@ -86,9 +86,8 @@ class HTPA:
     self.send_command(adc_res)
     if self.use_pull_ups:
       self.set_pull_up()
-
-    self.set_bias_current(0x05)
-    self.set_clock_speed(0x15)
+    self.set_bias_current(0x0C)
+    self.set_clock_speed(0x14)
     self.set_bpa_current(0x0C)
 
     logger.info("Grabbing EEPROM data")
@@ -323,8 +322,7 @@ class HTPA:
     # If the values are 100, 50, 20 then result should be 30 (100 - 50 - 20)
     # If we return 50 - 20 (30) and that's later subtracted from 100 we get 70
     # Instead we do (50 * -1 - 20) * -1 = 70. 100 - 70 = 30
-    return (((self.config.th_grad * mean_ptat) /
-              pow(2, self.config.grad_scale) * -1) - self.config.th_offset) * -1
+    return (self.config.th_grad * mean_ptat / pow(2, self.config.grad_scale)) + self.config.th_offset
 
   def ambient_temperature(self, mean_ptat):
     """
@@ -497,7 +495,7 @@ class HTPA:
     if start:
       flags |= 1 << 3
     if block is not None:
-      flags |= 1 << 4
+      flags |= block << 4
     return flags
 
   def generate_expose_block_command(self, block, blind=False,

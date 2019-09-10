@@ -9,8 +9,8 @@ def interpolate_tables(t_ambient, image, device, table_num):
   # TODO: More unit tests for me, please
   ta_axes, dk_axes, table, offset = get_table_and_axes(device, table_num)
 
-  ta_axes = np.array(ta_axes, dtype='int32')
-  dk_axes = np.array(dk_axes, dtype='int32') - offset
+  ta_axes = np.array(ta_axes, dtype='float')
+  dk_axes = np.array(dk_axes, dtype='float') - offset
 
   d_ta = ta_axes[1] - ta_axes[0]
   d_dk = dk_axes[1] - dk_axes[0]
