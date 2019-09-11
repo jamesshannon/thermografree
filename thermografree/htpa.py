@@ -356,13 +356,17 @@ class HTPA:
     pixel_values, ptats = self.capture_image()
     return self.ambient_temperature(np.mean(ptats))
 
-  def measure_temperatures(self):
-    """Measure temperatures in dK"""
+  def measure_temperatures(self, num_frames=1):
+    """Measure temperatures in celsius"""
+    img_frames = np.zeros((num_frames, 32, 32))
+
     electric_offset, vdd = self.capture_offsets()
-    pixel_values, ptats = self.capture_image()
-    thermal_image = self.temperature_compensation(pixel_values, electric_offset, ptats, vdd)
-    thermal_image = self.offset_compensation(thermal_image)
-    return thermal_image
+    for i in range(num_frames):
+      pixel_values, ptats = self.capture_image()
+      img = self.temperature_compensation(pixel_values, electric_offset, ptats, vdd)
+      img = self.offset_compensation(img)
+
+    return to_celsius(np.mean(img_frames, axis=0))
 
   def measure_observed_offset(self):
     logger.info(('Measuring observed offsets. Camera should be against '
