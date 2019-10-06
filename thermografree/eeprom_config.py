@@ -93,7 +93,9 @@ class EEPROMConfiguration:
     #   epsilon but not globalgain, so we keep _pix_c without globalgain for
     #   unit testing purposes
     # Note, though, that the sample C code doesn't use global gain
-    self.pix_c = self._pix_c.copy() * (self.global_gain / 10000)
+    # It does, however, add 0.5 for good measure ¯\_(ツ)_/¯
+    #self.pix_c = self._pix_c.copy() * (self.global_gain / 10000)
+    self.pix_c = self._pix_c.copy()
     self.pix_c[16:, :] = np.flipud(self.pix_c[16:,:])
 
     self.grad_scale = eeprom[0x0008]
