@@ -86,7 +86,7 @@ class EEPROMConfiguration:
 
     self.p_min = _unpack(ebytes[0x0000:0x0004])
     self.p_max = _unpack(ebytes[0x0004:0x0008])
-    self._pix_c = ((self._P * (self.p_max - self.p_min) / 65535. + self.p_min)
+    self._pix_c = (((self._P * (self.p_max - self.p_min) / 65535) + self.p_min)
                   * (self.epsilon / 100))
 
     # Add gain and flip the values. The example spreadsheet multiplies by

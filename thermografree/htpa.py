@@ -31,10 +31,10 @@ import time
 import numpy as np
 from periphery import I2C
 
-from .eeprom_config import EEPROMConfiguration
-from .lookup_tables import interpolate_tables
-from .utils import broadcast_offset_param
-from .utils import flip_bottom_part
+from thermografree.eeprom_config import EEPROMConfiguration
+from thermografree.lookup_tables import interpolate_tables
+from thermografree.utils import broadcast_offset_param
+from thermografree.utils import flip_bottom_part
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,7 @@ class HTPA:
     self.config = None
     self.offset = None
 
+
   def init_device(self):
     """Wake up and initialize the HTPA device using configuration set during
     initialization plus eeprom settings which are pulled from the device.
@@ -98,8 +99,9 @@ class HTPA:
     self.send_command(wakeup_and_blind)
     self.send_command(adc_res)
     self.set_bias_current(self.config.calib_bias)
-    self.set_bpa_current(self.config.calib_bpa)
     self.set_clock_speed(self.config.calib_clk)
+    self.set_bpa_current(self.config.calib_bpa)
+
     if self.use_pull_ups:
       self.set_pull_up(self.config.calib_pu)
 
@@ -170,6 +172,11 @@ class HTPA:
     # section 10.3
     v -= np.reshape(electric_offset, (32, 32))
     # section 10.4 - Vdd compensation
+    # Why does the sample code divide sum(vdds) by 50?
+    #  Since they don't reset the array maybe after a few loops then it
+    #  effectively becomes a rolling average?
+    # It's possible that there shouuld be 8 vdd measuements, though the
+    #   formula in the datasheet is buggy
     v -= self.voltage_offset(mean_ptat, mean_vdd)
     # section 10.5 - step 1
     v = self.sensitivity_compensation(v)
@@ -295,9 +302,13 @@ class HTPA:
     Returns:
       np.ndarray: supply voltage offset compensation
     """
+    # NB: the Heimann sample code does not match the datasheet. Amongst other
+    #  things the datasheet suggests that the 2nd divider is done and the
+    #  entire resuult is multiplied by the calibration phrase, but that
+    #  disagrees with sample code.
     calibration_param = ((self.config.calib2_vdd - self.config.calib1_vdd) /
                          (self.config.calib2_ptat - self.config.calib1_ptat))
-    offset = (self.config.vdd_comp_grad * mean_ptat /
+    offset = ((self.config.vdd_comp_grad * mean_ptat) /
               pow(2, self.config.vdd_scaling_grad) +
               self.config.vdd_comp_offset)
     offset *= (mean_vdd - self.config.calib1_vdd - calibration_param *
@@ -321,7 +332,7 @@ class HTPA:
     # Formula in datasheet is Vij - [gradient] - offset
     # If the values are 100, 50, 20 then result should be 30 (100 - 50 - 20)
     # If we return 50 - 20 (30) and that's later subtracted from 100 we get 70
-    # Instead we do (50 * -1 - 20) * -1 = 70. 100 - 70 = 30
+    # Instead we do [gradient] + offset (70) so that 100 - 70 = 30
     return (self.config.th_grad * mean_ptat / pow(2, self.config.grad_scale)) + self.config.th_offset
 
   def ambient_temperature(self, mean_ptat):
@@ -332,7 +343,7 @@ class HTPA:
       mean_ptat (float): mean PTAT (temperature) sensor reading
 
     Returns:
-      float: ambient temperature
+      float: ambient temperature in dK
     """
     return mean_ptat * self.config.ptat_grad + self.config.ptat_offset
 
@@ -356,7 +367,7 @@ class HTPA:
     pixel_values, ptats = self.capture_image()
     return self.ambient_temperature(np.mean(ptats))
 
-  def measure_temperatures(self, num_frames=1):
+  def measure_temperatures(self, num_frames=15):
     """Measure temperatures in celsius"""
     img_frames = np.zeros((num_frames, 32, 32))
 

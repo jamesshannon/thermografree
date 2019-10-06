@@ -15,16 +15,22 @@ def interpolate_tables(t_ambient, image, device, table_num):
   d_ta = ta_axes[1] - ta_axes[0]
   d_dk = dk_axes[1] - dk_axes[0]
 
+  #TODO: Run through this code again
   data = image.ravel()
   ta_idx = np.searchsorted(ta_axes, t_ambient) - 1
   dk_idx = np.searchsorted(dk_axes, data) - 1
 
+  # get the value of the row / column after which the value is found
   x1 = ta_axes[ta_idx]
   y1 = dk_axes[dk_idx]
 
+  # top-left corner of the mini-table
   table_y_x = table[dk_idx].transpose()[ta_idx]
+  # bottom-left corner of the mini-table
   table_y_x1 = table[dk_idx].transpose()[ta_idx + 1]
+  # top-right corner of the mini-table
   table_y1_x = table[dk_idx + 1].transpose()[ta_idx]
+  # bottom-right corner of the mini-table
   table_y1_x1 = table[dk_idx + 1].transpose()[ta_idx + 1]
 
   v_x = (table_y_x1 - table_y_x) * (t_ambient - x1) / d_ta + table_y_x
